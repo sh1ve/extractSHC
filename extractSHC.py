@@ -8,7 +8,7 @@ import sys
 ARCH = 'ELF64'
 DUMP = ''
 ELF = b''
-
+BASE = 0
 
 def get_file():
     if len(sys.argv) < 2:
@@ -29,25 +29,28 @@ def get_file():
 
 
 def get_dump(filename):
-    readelf = 'readelf -h -- '+ filename
-    res = shell(readelf)
+    global ARCH, DUMP, BASE
+    elf_header = 'objdump -h -- '+ filename
+    res = shell(elf_header)
     # check elf valid
-    if not res or 'ELF Header' not in res:
+    if not res or 'file format elf' not in res:
         return False
     strings = 'strings ' + filename + ' | grep "E: neither"'
     check = shell(strings)
     if not check:
         print('Seems not packed with shc')
         return False
-    global ARCH
-    if 'ELF32' in res:
+    if 'elf32' in res:
         ARCH = 'ELF32'
     # get objdump
-    global DUMP
-    objdump = 'objdump -M intel -D -- ' + filename
+    objdump = 'objdump -M intel -d -j .text -- ' + filename
     DUMP = shell(objdump)
     if not DUMP:
         return False
+    text_start = res.find('.text')
+    text_info = res[text_start:].split()
+    BASE = int(text_info[2], 16) - int(text_info[4], 16)
+    print("base address: " + hex(BASE))
     return True
 
 
@@ -59,33 +62,31 @@ def shell(cmd):
 
 def find_call(func_name, rindex):
     # find function call
-    global DUMP
+    global DUMP, BASE
     end = DUMP.rfind(func_name)
     if end == -1:
-        return b''
+        return 0
     # right index
     for i in range(rindex):
         end = DUMP[:end].rfind(func_name)
-    # extract the binary machine code between `:` and `call` 
-    start = DUMP[:end].rfind(':') + 1
-    end = DUMP[:end].rfind('call')
-    func_opcode = DUMP[start:end].strip()
-    print('call ' + func_name + ' opcode:' + func_opcode)
-    binary_code = bytes.fromhex(func_opcode)
-    return binary_code
+    # extract the offset between `\n` and `:` 
+    start = DUMP[:end].rfind('\n') + 1
+    end = DUMP[:end].rfind(':')
+    func_offset = int(DUMP[start:end].strip(), 16) - BASE
+    print('call ' + func_name + ' at offset: ' + hex(func_offset))
+    return func_offset
 
 
 def patch_func(func_name, rindex, replace_code = ""):
     global ELF
-    machine_code = find_call(func_name, 0)
-    if machine_code:
+    offset = find_call(func_name, 0)
+    if offset:
         # default patched with `nop`
         if not replace_code:
-            replace_code = '90 ' * len(machine_code)
+            replace_code = '90 ' * 5
         patch_code = bytes.fromhex(replace_code)
-        offset = ELF.rfind(machine_code)
-        machine_code = ELF[offset : offset + len(patch_code)]
-        ELF = ELF.replace(machine_code, patch_code)
+        # replace the binary code at the offset
+        ELF = ELF[:offset] + patch_code + ELF[offset + len(patch_code):]
         print("Patch "+ func_name + " with " + replace_code)
 
 
@@ -112,12 +113,12 @@ def patch32():
 def main():
     filepath = get_file()
     if not filepath:
-    	print('Error in reading file')
-    	return None
+        print('Error in reading file')
+        return None
     dump_result = get_dump(filepath)
     if not dump_result:
-    	print('error in objdump')
-    	return None
+        print('error in objdump')
+        return None
     global ARCH
     if ARCH == 'ELF64':
         patch64()
