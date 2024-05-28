@@ -1,5 +1,5 @@
 # extractSHC
-
+[**中文说明**](README_zh.md)
 This tool needs to run on the Linux. You should have the `objdump` and `strings` commands installed in advance to use extractSHC. After a successful run, it will generate a new file with the same name and a `.patch` extension. Run the file. During normal execution, the standard output will print the original script.
 
 
