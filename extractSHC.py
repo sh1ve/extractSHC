@@ -102,9 +102,11 @@ def patch64():
         # mov eax, 1 | leave | ret
         # if HARDENING, `getpid` in `chkenv` at rindex 1
         patch_func('getpid', 1, 'B8 01 00 00 00 C9 C3')
+        patch_func('time', 1, 'B8 00 00 00 00')
         patch_func('memcpy', 0, '48 89 FE 48 31 FF FF C7 48 89 F8 0F 05 B8 3C 00 00 00 0F 05')
     else:
         patch_func('getpid', 0, 'B8 01 00 00 00 C9 C3')
+        patch_func('time', 0, 'B8 00 00 00 00')
         # mov eax,1 | mov edi, eax | syscall | xor eax, eax | exit
         patch_func('memcpy', 0, 'B8 01 00 00 00 89 C7 0F 05 31 C0 B8 3C 00 00 00 0F 05')
 
@@ -116,11 +118,13 @@ def patch32():
     # if `system` exist, the HARDENING flag is on
     if hard:
         patch_func('getpid', 1, 'B8 01 00 00 00 C9 C3')
+        patch_func('time', 1, 'B8 00 00 00 00')
         # mov eax,4 | pop ecx | pop edx | pop edx | push 1| pop ebx | int 80h
         # xor eax, eax | inc eax | exit
         patch_func('memcpy', 0, 'B8 04 00 00 00 59 5A 5A 6A 01 5B CD 80 31 C0 40 C9 C3')
     else:
         patch_func('getpid', 0, 'B8 01 00 00 00 C9 C3')
+        patch_func('time', 0, 'B8 00 00 00 00')
         # mov eax,4 | pop edx | push 1 | pop ebx | pop ecx | pop edx | int 80h
         # xor eax, eax | inc eax | exit
         patch_func('memcpy', 0, 'B8 04 00 00 00 5A 6A 01 5B 59 5A CD 80 31 C0 40 C9 C3')
